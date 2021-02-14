@@ -1,1 +1,2 @@
-# multiStateCure
+# Multistate Cure Model
+
