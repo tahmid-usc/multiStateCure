@@ -73,7 +73,7 @@ library(simsurv)
     geom_line(aes(color = Treatment), size = 2) +
     geom_point(aes(shape = Status), size = 5, color = 3) + 
     scale_x_continuous(breaks = unique(dt$id)) + 
-    labs(title = 'Year: {round(frame_along)}', x = 'Time', y = 'ID') +
+    labs(title = 'Year: {round(frame_along)}', x = 'ID', y = 'Time') +
     theme_gray(base_size =  20) +
     coord_flip() +
     transition_reveal(time) 
