@@ -13,11 +13,11 @@ library(survminer)
 library(survival)
 library(ggfortify)
 library(gridExtra)
+library(MultiCure)
 set.seed(2021)
 
 
 #devtools::install_github("lbeesleyBIOSTAT/MultiCure", build = TRUE, build_opts = c()) 
-library(MultiCure) 
 #utils::browseVignettes('MultiCure')
 
 
@@ -45,8 +45,8 @@ T_34 <- 10^6
 
 C <- runif(n, 10, 80) # censoring time
 
-# 1 --> 4; Cured => G = 0
 
+# crerate data frame
 dt <- data.frame(id = id, T_13 = T_13, T_14 = T_14, T_24 = T_24, T_34 = T_34, C = C, x1 = X[,1], x2 = X[,2], G = G)
 
 
@@ -76,11 +76,12 @@ dt[G == 1,]$T_24 <- T_24[G == 1]
 
 
 
-#create variables
+#create variables and transformations
+
 #for cured
 dt <- dt %>% mutate(Y_d = pmin(T_24, C), delta_d = as.numeric(T_24 < C))
 
-# for uncured; death before reccurence 
+# for uncured; death before reccurrence 
 dt <- dt %>% mutate(Y_d = if_else(G == 1 & T_14 < T_13, pmin(T_14, C), Y_d),
                     Y_r = Y_d,
                     delta_d = if_else(G == 1 & T_14 < T_13, as.numeric(T_14 < C), delta_d),
@@ -94,12 +95,15 @@ dt <- dt %>% mutate(
   delta_d = if_else(G == 1 & T_14 > T_13, as.numeric(T_13 + T_34 < C), delta_d)
   )                 
 
-
+#making survival dataset
 none <- dt %>%  select(id, Y_d, Y_r, C, delta_d, delta_r, x1, x2, G)
 
+# dataset from multicure package
 NONE = SimulateMultiCure(type = 'NoMissingness') 
 
-summary(NONE); summary(none)
+# check for similarity in the data sets
+summary(NONE) 
+summary(none)
 
 
 #------------------------------------------
@@ -119,8 +123,7 @@ vis_none %>%
   
 # Basic survival curves
 
-par(mfrow = c(2,2))
-
+# overall
 fit_km <- survfit(Surv(Y_d, delta_d) ~ 1, data = none)
 p1 <- ggsurvplot(fit_km, risk.table = TRUE, xlab = "Time (years)", censor = T, title = 'Overall survival')
 
@@ -129,3 +132,42 @@ fit_km <- survfit(Surv(Y_D, delta_D) ~ 1, data = NONE)
 p2 <- ggsurvplot(fit_km, risk.table = TRUE, xlab = "Time (years)", censor = T, title = 'Overall survival (multicure)')
 
 arrange_ggsurvplots(list(p1, p2))
+
+
+# recurrence
+fit_km <- survfit(Surv(Y_r, delta_r) ~ 1, data = none)
+p1 <- ggsurvplot(fit_km, risk.table = TRUE, xlab = "Time (years)", censor = T, title = 'Overall survival')
+
+
+fit_km <- survfit(Surv(Y_R, delta_R) ~ 1, data = NONE)
+p2 <- ggsurvplot(fit_km, risk.table = TRUE, xlab = "Time (years)", censor = T, title = 'Overall survival (multicure)')
+
+arrange_ggsurvplots(list(p1, p2))
+
+#---------------------
+
+# our data
+### Prepare Data
+Cov = data.frame(X1 = none$x1,X2 = none$x2)
+VARS = names(Cov)
+TransCov = list(Trans13 = VARS, Trans24 = VARS, Trans14 = VARS, Trans34 = VARS, PNonCure = VARS)
+datWIDE = data.frame(Y_R = none$Y_r, Y_D = none$Y_d, delta_R = none$delta_r , 
+                      delta_D = none$delta_d, G = none$G)
+
+### Fit Model
+fit = MultiCure(iternum = 50, datWIDE, Cov, ASSUME = 'SameHazard', 
+                TransCov=TransCov, BASELINE = 'weib')
+
+
+
+# package data
+### Prepare Data
+Cov = data.frame(X1 = NONE$X1,X2 = NONE$X2)
+VARS = names(Cov)
+TransCov = list(Trans13 = VARS, Trans24 = VARS, Trans14 = VARS, Trans34 = VARS, PNonCure = VARS)
+datWIDE = data.frame( Y_R = NONE$Y_R, Y_D = NONE$Y_D, delta_R = NONE$delta_R , 
+                      delta_D = NONE$delta_D, G = NONE$G)
+
+### Fit Model
+fit = MultiCure(iternum = 50, datWIDE, Cov, ASSUME = 'SameHazard', TransCov=TransCov, 
+                BASELINE = 'weib')
